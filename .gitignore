@@ -1,0 +1,13 @@
+# Never commit secrets
+.env
+.env.*
+*.key
+
+# Supabase local / temp
+supabase/.temp/
+supabase/.branches/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+node_modules/
