@@ -258,14 +258,14 @@
     // For the public/hosted build, change endpoint to your backend proxy URL.
     // The proxy adds the Anthropic key AND the anthropic-version header server-side
     // (the client below sends neither). Do not add a key here.
-    endpoint: "https://api.anthropic.com/v1/messages",
+    endpoint: "https://izexdhzmbesjerizwdtm.supabase.co/functions/v1/clever-service",
     model: "claude-sonnet-4-6",
     maxTokens: 4096,
     // Turn on for the hosted/backend build to constrain the model to the exact JSON
     // shape via the Messages API output_config.format (structured outputs). Left off
     // for the artifact prototype because the artifact runtime may not accept
     // output_config; the client parser below is hardened to compensate.
-    useStructuredOutput: false
+    useStructuredOutput: true
   };
 
   // Structured-output schemas (used only when CONFIG.useStructuredOutput is true).
