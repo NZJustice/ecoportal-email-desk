@@ -421,22 +421,42 @@
     return html;
   }
 
+  // markdown -> plain text (for the clipboard's text/plain flavour): real bullet
+  // dots, sequential numbering, inline markdown markers removed, so a plain paste
+  // still reads well. (The text/html flavour keeps full list formatting.)
+  function mdToPlain(md){
+    function strip(s){
+      return s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+|mailto:[^\s)]+)\)/g,"$1 ($2)")
+              .replace(/\*\*([^*]+)\*\*/g,"$1").replace(/__([^_]+)__/g,"$1");
+    }
+    var lines=(md||"").replace(/\r\n?/g,"\n").split("\n"), out=[], n=0, m;
+    for(var i=0;i<lines.length;i++){
+      var line=lines[i];
+      if((m=line.match(/^(\s*)\d+[.)]\s+([\s\S]*)$/))){ n++; out.push(m[1]+n+". "+strip(m[2])); continue; }
+      if(/^\s*$/.test(line)){ out.push(line); continue; }
+      n=0;
+      if((m=line.match(/^(\s*)[-•*]\s+([\s\S]*)$/))){ out.push(m[1]+"• "+strip(m[2])); continue; }
+      out.push(strip(line));
+    }
+    return out.join("\n");
+  }
+
   // html (Gmail paste) -> markdown
   function htmlToMd(html){
     var doc=new DOMParser().parseFromString(html,"text/html"), out="";
-    function walk(node,listType){
+    function walk(node,list){   // list: {type:"ul"|"ol", n:0} or null
       node.childNodes.forEach(function(n){
         if(n.nodeType===3){ out+=n.nodeValue.replace(/\s+/g," "); return; }
         if(n.nodeType!==1) return;
         var tag=n.tagName.toLowerCase();
         if(tag==="br"){ out+="\n"; }
-        else if(tag==="li"){ out+="\n"+(listType==="ol"?"1. ":"- "); walk(n,null); }
-        else if(tag==="ul"||tag==="ol"){ out+="\n"; walk(n,tag); out+="\n"; }
-        else if(tag==="p"||tag==="div"){ if(out&&!/\n$/.test(out))out+="\n"; walk(n,listType); if(!/\n$/.test(out))out+="\n"; }
-        else if(tag==="b"||tag==="strong"){ out+="**"; walk(n,listType); out+="**"; }
-        else if(tag==="i"||tag==="em"){ walk(n,listType); }
+        else if(tag==="li"){ out+="\n"+((list&&list.type==="ol")?((++list.n)+". "):"- "); walk(n,null); }
+        else if(tag==="ul"||tag==="ol"){ out+="\n"; walk(n,{type:tag,n:0}); out+="\n"; }
+        else if(tag==="p"||tag==="div"){ if(out&&!/\n$/.test(out))out+="\n"; walk(n,list); if(!/\n$/.test(out))out+="\n"; }
+        else if(tag==="b"||tag==="strong"){ out+="**"; walk(n,list); out+="**"; }
+        else if(tag==="i"||tag==="em"){ walk(n,list); }
         else if(tag==="a"){ var h=n.getAttribute("href")||"", t=n.textContent||""; if(/^https?:|^mailto:/.test(h)&&t.trim()){out+="["+t+"]("+h+")";} else {out+=t;} }
-        else { walk(n,listType); }
+        else { walk(n,list); }
       });
     }
     walk(doc.body,null);
@@ -756,8 +776,10 @@ scope,
   function copyDone(btn){ var old=btn.textContent; btn.textContent="Copied"; btn.classList.add("done"); setTimeout(function(){btn.textContent=old;btn.classList.remove("done");},1600); }
   async function copyRich(md,btn,asPlain){
     // asPlain reproduces the text verbatim (literal *, [x](y) etc. survive) so
-    // "Copy my original instead" is byte-faithful to what the user typed.
-    var html=asPlain ? ("<div>"+esc(md).replace(/\n/g,"<br>")+"</div>") : mdToHtml(md), plain=md;
+    // "Copy my original instead" is byte-faithful. The rewrite path uses mdToHtml
+    // for the rich flavour and mdToPlain for a clean text/plain fallback.
+    var html=asPlain ? ("<div>"+esc(md).replace(/\n/g,"<br>")+"</div>") : mdToHtml(md);
+    var plain=asPlain ? md : mdToPlain(md);
     try{
       if(window.ClipboardItem&&navigator.clipboard&&navigator.clipboard.write){
         await navigator.clipboard.write([new ClipboardItem({ "text/html":new Blob([html],{type:"text/html"}), "text/plain":new Blob([plain],{type:"text/plain"}) })]);
